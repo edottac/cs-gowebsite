@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CS:GO Aim Trainer</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#ff4655;--muted:#94a3b8;--glass: rgba(255,255,255,0.04)}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;color:#e6eef8;background:linear-gradient(180deg,#061022 0%, #081425 60%);}
+    .app{max-width:1100px;margin:28px auto;padding:20px;display:grid;grid-template-columns:1fr 340px;gap:18px}
+    header{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
+    h1{font-size:20px;margin:0}
+    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 20px rgba(2,6,23,0.6);}
+    #gameCanvas{width:100%;height:72vh;border-radius:10px;background:linear-gradient(180deg,#071428,#021018);display:block}
+    .controls{display:flex;flex-direction:column;gap:8px}
+    label{font-size:13px;color:var(--muted)}
+    input[type=range]{width:100%}
+    .row{display:flex;gap:8px}
+    button{background:var(--accent);border:0;color:white;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+    .stat{background:var(--glass);padding:8px;border-radius:8px;min-width:86px;text-align:center}
+    .small{font-size:12px;color:var(--muted)}
+    footer{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;margin-top:8px}
+    @media (max-width:980px){.app{grid-template-columns:1fr;}.controls{order:2}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>CS:GO Aim Trainer</h1>
+      <div style="font-size:13px;color:var(--muted)">Single-file page — ready for GitHub Pages</div>
+    </header>
+
+    <main class="card">
+      <canvas id="gameCanvas"></canvas>
+      <div class="stats">
+        <div class="stat"><div class="small">Score</div><div id="score">0</div></div>
+        <div class="stat"><div class="small">Hits</div><div id="hits">0</div></div>
+        <div class="stat"><div class="small">Misses</div><div id="misses">0</div></div>
+        <div class="stat"><div class="small">Accuracy</div><div id="acc">0%</div></div>
+        <div class="stat"><div class="small">Time left</div><div id="time">30s</div></div>
+      </div>
+    </main>
+
+    <aside class="card controls">
+      <div>
+        <label>Mode</label>
+        <div class="row" style="margin-top:6px">
+          <button id="startBtn">Start</button>
+          <button id="stopBtn" class="ghost">Stop</button>
+        </div>
+      </div>
+
+      <div>
+        <label>Session length: <span id="timeLabel">30</span>s</label>
+        <input id="sessionLength" type="range" min="10" max="180" value="30">
+      </div>
+
+      <div>
+        <label>Target size: <span id="sizeLabel">40</span>px</label>
+        <input id="targetSize" type="range" min="12" max="120" value="40">
+      </div>
+
+      <div>
+        <label>Spawn mode</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <select id="spawnMode" style="flex:1;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)">
+            <option value="static">Static</option>
+            <option value="moving">Moving</option>
+            <option value="flick">Flick (random)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label>Target speed (when moving)</label>
+        <input id="targetSpeed" type="range" min="10" max="400" value="120">
+      </div>
+
+      <div>
+        <label>Round Options</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button id="singleTarget" class="ghost">Single target</button>
+          <button id="spawnsContinuously" class="ghost">Continuous</button>
+        </div>
+      </div>
+
+      <div style="margin-top:6px">
+        <label>Best score (local)</label>
+        <div id="best" style="font-weight:700">0</div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label>Instructions</label>
+        <div class="small" style="margin-top:6px">Click or tap targets to score. Adjust size, speed, mode and session length. Works on desktop and mobile. Best scores are stored locally in your browser.</div>
+      </div>
+
+      <div style="margin-top:10px">
+        <button id="resetBest" class="ghost">Reset Best</button>
+      </div>
+    </aside>
+
+    <footer class="small">Made for quick CS:GO aim practice — drop this file into a GitHub repo root and enable GitHub Pages to publish.</footer>
+  </div>
+
+  <script>
+    // Simple Aim Trainer
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const hitsEl = document.getElementById('hits');
+    const missesEl = document.getElementById('misses');
+    const accEl = document.getElementById('acc');
+    const timeEl = document.getElementById('time');
+    const bestEl = document.getElementById('best');
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const resetBest = document.getElementById('resetBest');
+
+    const sessionLength = document.getElementById('sessionLength');
+    const timeLabel = document.getElementById('timeLabel');
+    const targetSize = document.getElementById('targetSize');
+    const sizeLabel = document.getElementById('sizeLabel');
+    const spawnMode = document.getElementById('spawnMode');
+    const targetSpeed = document.getElementById('targetSpeed');
+    const singleTarget = document.getElementById('singleTarget');
+    const spawnsContinuously = document.getElementById('spawnsContinuously');
+
+    // state
+    let w = 800, h = 600;
+    let targets = [];
+    let score = 0, hits = 0, misses = 0;
+    let running = false; let timeLeft = parseInt(sessionLength.value);
+    let lastTime = null; let singleMode = true; let continuous = false;
+
+    function resize(){
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(300, Math.floor(rect.width * devicePixelRatio));
+      canvas.height = Math.max(200, Math.floor((window.innerHeight * 0.72) * devicePixelRatio));
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+    function placeTargetRandom(){
+      const size = parseInt(targetSize.value);
+      const padding = size + 8;
+      const canvasRect = canvas.getBoundingClientRect();
+      const cw = canvasRect.width; const ch = canvasRect.height;
+      const x = Math.random() * (cw - padding*2) + padding;
+      const y = Math.random() * (ch - padding*2) + padding;
+      return {x,y,size, vx: (Math.random()*2-1)*parseFloat(targetSpeed.value), vy: (Math.random()*2-1)*parseFloat(targetSpeed.value)};
+    }
+
+    function spawn(){
+      const mode = spawnMode.value;
+      if(mode === 'flick'){
+        // spawn and disappear after a short delay
+        targets = [placeTargetRandom()];
+        setTimeout(()=>{ if(!continuous) targets = []; }, 800);
+      } else if(mode === 'static'){
+        if(singleMode) targets = [placeTargetRandom()]; else if(continuous) targets.push(placeTargetRandom());
+      } else if(mode === 'moving'){
+        if(singleMode) targets = [placeTargetRandom()]; else if(continuous) targets.push(placeTargetRandom());
+      }
+    }
+
+    function update(dt){
+      const mode = spawnMode.value;
+      // move targets
+      if(mode === 'moving'){
+        for(const t of targets){
+          t.x += t.vx * dt / 1000; t.y += t.vy * dt / 1000;
+          const rect = canvas.getBoundingClientRect();
+          const margin = t.size + 8;
+          if(t.x < margin) { t.x = margin; t.vx *= -1 }
+          if(t.y < margin) { t.y = margin; t.vy *= -1 }
+          if(t.x > rect.width - margin) { t.x = rect.width - margin; t.vx *= -1 }
+          if(t.y > rect.height - margin) { t.y = rect.height - margin; t.vy *= -1 }
+        }
+      }
+    }
+
+    function draw(){
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0,0,rect.width, rect.height);
+      // background grid subtle
+      // draw targets
+      for(const t of targets){
+        // outer ring
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.size/2 + 6, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,70,85,0.06)'; ctx.fill();
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.size/2, 0, Math.PI*2);
+        ctx.fillStyle = '#ff4655'; ctx.fill();
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.size/6, 0, Math.PI*2);
+        ctx.fillStyle = 'white'; ctx.fill();
+      }
+    }
+
+    function gameLoop(ts){
+      if(!lastTime) lastTime = ts; const dt = ts - lastTime; lastTime = ts;
+      if(running){
+        update(dt);
+        // timer
+        if(timeLeft > 0){
+          // decrement by dt
+          const dec = dt/1000;
+          timeLeft = Math.max(0, timeLeft - dec);
+          timeEl.textContent = Math.ceil(timeLeft) + 's';
+        } else {
+          stop();
+        }
+      }
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // input
+    function handleShot(e){
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX ?? e.touches?.[0]?.clientX) - rect.left;
+      const y = (e.clientY ?? e.touches?.[0]?.clientY) - rect.top;
+      let hitAny = false;
+      for(let i = targets.length-1; i>=0; i--){
+        const t = targets[i];
+        const dx = x - t.x; const dy = y - t.y;
+        if(Math.sqrt(dx*dx+dy*dy) <= t.size/2){
+          hitAny = true;
+          // score depends on size and zone
+          const centerDist = Math.sqrt(dx*dx+dy*dy);
+          const points = Math.max(1, Math.round((t.size - centerDist) / t.size * 100));
+          score += points; hits++;
+          targets.splice(i,1);
+          if(!continuous) spawn();
+          break;
+        }
+      }
+      if(!hitAny){ misses++; }
+      updateUI();
+    }
+
+    function updateUI(){
+      scoreEl.textContent = score;
+      hitsEl.textContent = hits;
+      missesEl.textContent = misses;
+      const acc = hits + misses === 0 ? 0 : Math.round(hits / (hits + misses) * 100);
+      accEl.textContent = acc + '%';
+      const best = parseInt(localStorage.getItem('csgo-aim-best') || '0');
+      bestEl.textContent = best;
+    }
+
+    function start(){
+      if(running) return;
+      running = true; lastTime = null; score = 0; hits = 0; misses = 0;
+      timeLeft = parseInt(sessionLength.value);
+      timeEl.textContent = timeLeft + 's';
+      targets = [];
+      spawn();
+      updateUI();
+    }
+    function stop(){
+      if(!running) return;
+      running = false;
+      // save best
+      const best = parseInt(localStorage.getItem('csgo-aim-best') || '0');
+      if(score > best) localStorage.setItem('csgo-aim-best', String(score));
+      updateUI();
+    }
+
+    // listeners
+    canvas.addEventListener('click', (e)=>{ if(running) handleShot(e); else { start(); handleShot(e); }});
+    canvas.addEventListener('touchstart', (e)=>{ e.preventDefault(); if(running) handleShot(e); else { start(); handleShot(e); }} , {passive:false});
+
+    startBtn.addEventListener('click', start);
+    stopBtn.addEventListener('click', stop);
+    resetBest.addEventListener('click', ()=>{ localStorage.removeItem('csgo-aim-best'); bestEl.textContent = '0'; });
+
+    sessionLength.addEventListener('input', ()=>{ timeLabel.textContent = sessionLength.value; });
+    targetSize.addEventListener('input', ()=>{ sizeLabel.textContent = targetSize.value; spawn(); });
+    spawnMode.addEventListener('change', ()=>{ spawn(); });
+    targetSpeed.addEventListener('input', ()=>{ /* speed used on next spawn */ });
+
+    singleTarget.addEventListener('click', ()=>{ singleMode = true; singleTarget.classList.toggle('ghost'); spawnsContinuously.classList.add('ghost'); targets = []; spawn(); });
+    spawnsContinuously.addEventListener('click', ()=>{ singleMode = false; spawnsContinuously.classList.toggle('ghost'); singleTarget.classList.add('ghost'); continuous = true; spawn(); });
+
+    window.addEventListener('resize', ()=>{ resize(); });
+
+    // init
+    function init(){
+      resize();
+      timeLabel.textContent = sessionLength.value;
+      sizeLabel.textContent = targetSize.value;
+      bestEl.textContent = localStorage.getItem('csgo-aim-best') || '0';
+      requestAnimationFrame(gameLoop);
+    }
+    init();
+  </script>
+</body>
+</html>
